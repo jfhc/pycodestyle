@@ -558,8 +558,14 @@ def continued_indentation(logical_line, tokens, indent_level, hang_closing,
     indent = [last_indent[1]]
     if verbose >= 3:
         print(">>> " + tokens[0][4].rstrip())
+    # track whether hanging continuation is allowed
+    forbid_hangs = {}
+    last_token_open_bracket = False
 
     for token_type, text, start, end, line in tokens:
+        if last_token_open_bracket:
+            forbid_hangs[depth] = token_type not in NEWLINE
+            last_token_open_bracket = False
 
         newline = row < start[0] - first_row
         if newline:
@@ -581,7 +587,8 @@ def continued_indentation(logical_line, tokens, indent_level, hang_closing,
             # is the indent relative to an opening bracket line?
             for open_row in reversed(open_rows[depth]):
                 hang = rel_indent[row] - rel_indent[open_row]
-                hanging_indent = hang in valid_hangs
+                hanging_indent = (hang in valid_hangs and not
+                                  forbid_hangs.get(depth, False))
                 if hanging_indent:
                     break
             if hangs[depth]:
@@ -660,6 +667,7 @@ def continued_indentation(logical_line, tokens, indent_level, hang_closing,
                     open_rows.append([])
                 open_rows[depth].append(row)
                 parens[row] += 1
+                last_token_open_bracket = True
                 if verbose >= 4:
                     print("bracket depth %s seen, col %s, visual min = %s" %
                           (depth, start[1], indent[depth]))
@@ -674,6 +682,7 @@ def continued_indentation(logical_line, tokens, indent_level, hang_closing,
                     if ind >= prev_indent:
                         del indent_chances[ind]
                 del open_rows[depth + 1:]
+                forbid_hangs[depth] = False
                 depth -= 1
                 if depth:
                     indent_chances[indent[depth]] = True
